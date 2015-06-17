@@ -5,6 +5,7 @@
  */
 
 #include "pllua.h"
+#include "plluacommon.h"
 #include "rowstamp.h"
 
 /*
@@ -113,16 +114,6 @@ static Datum datumcopy (Datum dat, luaP_Typeinfo *ti) {
     return PointerGetDatum(copy);
   }
   return dat;
-}
-
-/* get MemoryContext for state L */
-static MemoryContext luaP_getmemctxt (lua_State *L) {
-  MemoryContext mcxt;
-  lua_pushlightuserdata(L, (void *) L);
-  lua_rawget(L, LUA_REGISTRYINDEX);
-  mcxt = (MemoryContext) lua_touserdata(L, -1);
-  lua_pop(L, 1);
-  return mcxt;
 }
 
 
@@ -292,15 +283,15 @@ static void luaP_preptrigger (lua_State *L, TriggerData *tdata) {
   if (TRIGGER_FIRED_FOR_ROW(tdata->tg_event)) {
     if (TRIGGER_FIRED_BY_UPDATE(tdata->tg_event)) {
       luaP_pushtuple(L, tdata->tg_relation->rd_att, tdata->tg_newtuple,
-          tdata->tg_relation->rd_id, 0);
+          tdata->tg_relation->rd_id, 0, tsk_null);
       lua_setfield(L, -2, "row"); /* new row */
       luaP_pushtuple(L, tdata->tg_relation->rd_att, tdata->tg_trigtuple,
-          tdata->tg_relation->rd_id, 1);
+          tdata->tg_relation->rd_id, 1, tsk_null);
       lua_setfield(L, -2, "old"); /* old row */
     }
     else { /* insert or delete */
       luaP_pushtuple(L, tdata->tg_relation->rd_att, tdata->tg_trigtuple,
-          tdata->tg_relation->rd_id, 0);
+          tdata->tg_relation->rd_id, 0, tsk_null);
       lua_setfield(L, -2, "row"); /* old row */
     }
   }
@@ -1269,6 +1260,7 @@ Datum luaP_callhandler (lua_State *L, FunctionCallInfo fcinfo) {
     PG_RE_THROW();
   }
   PG_END_TRY();
+  //lua_gc(L, LUA_GCCOLLECT, 0);
   if (SPI_finish() != SPI_OK_FINISH)
     elog(ERROR, "[pllua]: could not disconnect from SPI manager");
   return retval;
@@ -1292,6 +1284,7 @@ Datum luaP_inlinehandler (lua_State *L, const char *source) {
     PG_RE_THROW();
   }
   PG_END_TRY();
+  //lua_gc(L, LUA_GCCOLLECT, 0);
   if (SPI_finish() != SPI_OK_FINISH)
     elog(ERROR, "[pllua]: could not disconnect from SPI manager");
   PG_RETURN_VOID();

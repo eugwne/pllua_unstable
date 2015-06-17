@@ -46,6 +46,9 @@
 
 #define PLLUA_VERSION "PL/Lua 1.0"
 
+#include "datatuptable.h"
+
+
 typedef struct luaP_Buffer {
   int size;
   Datum *value;
@@ -67,7 +70,7 @@ Datum luaP_inlinehandler (lua_State *L, const char *source);
 void luaP_pushdatum (lua_State *L, Datum dat, Oid type);
 Datum luaP_todatum (lua_State *L, Oid type, int len, bool *isnull);
 void luaP_pushtuple (lua_State *L, TupleDesc desc, HeapTuple tuple,
-    Oid relid, int readonly);
+    Oid relid, int readonly, datatuptable_t *dtuple);
 HeapTuple luaP_totuple (lua_State *L);
 HeapTuple luaP_casttuple (lua_State *L, TupleDesc tupdesc);
 /* SPI */

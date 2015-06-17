@@ -30,8 +30,9 @@ EXTENSION = pllua
 DATA = pllua--1.0.sql
 #DATA_built = pllua.sql
 
+
 REGRESS = plluatest
-OBJS = pllua.o plluaapi.o plluaspi.o
+OBJS = plluacommon.o pllua.o plluaapi.o plluaspi.o datatuptable.o tinySAK/tsk.o tinySAK/tsk_object.o tinySAK/tsk_memory.o tinySAK/tsk_debug.o
 PG_CPPFLAGS = $(LUAINC)
 SHLIB_LINK = $(LUALIB)
 
@@ -39,4 +40,6 @@ SHLIB_LINK = $(LUALIB)
 PG_CONFIG ?= pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
+override CPPFLAGS := -I. -I$(srcdir) $(CPPFLAGS) -DTINYSAK_IMPORTS_IGNORE
+
 
