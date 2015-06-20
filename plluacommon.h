@@ -17,4 +17,11 @@
 /* get MemoryContext for state L */
 MemoryContext luaP_getmemctxt (lua_State *L);
 
+#define info(msg) ereport(INFO, (errmsg("%s", msg)))
+
+#define MTOLUA(state) MemoryContext ___mcxt = luaP_getmemctxt(state); \
+MemoryContext ___m = MemoryContextSwitchTo(___mcxt);
+
+#define MTOPG MemoryContextSwitchTo(___m);
+
 #endif // PLLUACOMMON_H

@@ -173,9 +173,10 @@ static int luaP_tupleindex (lua_State *L) {
     int i;
     int idx = -1;
     if (t->data){
-        for (i = 0; i< t->data->colCount; ++i){
+        TupleDesc tupleDesc = t->data->tupleDesc;
+        for (i = 0; i< tupleDesc->natts; ++i){
             
-            if (strcmp(NameStr(t->data->cols[i]),name) == 0){
+            if (strcmp(NameStr(tupleDesc->attrs[i]->attname),name) == 0){
                 idx = i;
                 break;
             }

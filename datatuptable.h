@@ -13,51 +13,31 @@ typedef struct datatuptable_s
 {
     TSK_DECLARE_OBJECT;
     lua_State *L;
-    int colCount;
-    NameData *cols;
-    //TupleDesc tupleDesc; caused strange behavior...
+    TupleDesc tupleDesc;
 } datatuptable_t;
 
 static tsk_object_t* datatuptable_ctor(tsk_object_t * self, va_list * app)
 {
-    int i;
     TupleDesc desc;
     datatuptable_t *d = (datatuptable_t *)self;
     if(d){
-        MemoryContext mcxt;
-        MemoryContext m;
         d->L = va_arg(*app,lua_State *);
-
         desc = va_arg(*app, TupleDesc);
-        d->colCount = desc->natts;
-        mcxt = luaP_getmemctxt(d->L);
-        m = MemoryContextSwitchTo(mcxt);
-
-        d->cols = palloc(sizeof(NameData)*d->colCount);
-        for (i = 0; i < desc->natts; i++) {
-            memcpy(&d->cols[i].data, desc->attrs[i]->attname.data,NAMEDATALEN);
-        }
-
-        MemoryContextSwitchTo(m);
+         MTOLUA(d->L);
+        d->tupleDesc = CreateTupleDescCopy(desc);
+        MTOPG;
 
     }
     return self;
 }
-#define info(msg) ereport(INFO, (errmsg("%s", msg)))
+
 static tsk_object_t * datatuptable_dtor(tsk_object_t * self)
 {
     datatuptable_t *d = (datatuptable_t *)self;
-
-    info("gc tuple");
-
-
-    if(d){
-        MemoryContext mcxt;
-        MemoryContext m;
-        mcxt = luaP_getmemctxt(d->L);
-        m = MemoryContextSwitchTo(mcxt);
-        pfree(d->cols);
-        MemoryContextSwitchTo(m);
+      if(d){
+        MTOLUA(d->L);
+        FreeTupleDesc(d->tupleDesc);
+        MTOPG;
     }
     return self;
 }
