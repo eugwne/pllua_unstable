@@ -292,15 +292,15 @@ static void luaP_preptrigger (lua_State *L, TriggerData *tdata) {
   if (TRIGGER_FIRED_FOR_ROW(tdata->tg_event)) {
     if (TRIGGER_FIRED_BY_UPDATE(tdata->tg_event)) {
       luaP_pushtuple(L, tdata->tg_relation->rd_att, tdata->tg_newtuple,
-          tdata->tg_relation->rd_id, 0,0);
+          tdata->tg_relation->rd_id, 0);
       lua_setfield(L, -2, "row"); /* new row */
       luaP_pushtuple(L, tdata->tg_relation->rd_att, tdata->tg_trigtuple,
-          tdata->tg_relation->rd_id, 1,0);
+          tdata->tg_relation->rd_id, 1);
       lua_setfield(L, -2, "old"); /* old row */
     }
     else { /* insert or delete */
       luaP_pushtuple(L, tdata->tg_relation->rd_att, tdata->tg_trigtuple,
-          tdata->tg_relation->rd_id, 0,0);
+          tdata->tg_relation->rd_id, 0);
       lua_setfield(L, -2, "row"); /* old row */
     }
   }

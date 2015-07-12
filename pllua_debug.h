@@ -6,8 +6,8 @@
 #include <lauxlib.h>
 
 
-void setLINE(const char *location);
-const char * getLINE();
+void setLINE(char *location);
+const char * getLINE(void);
 
 
 #include <stdio.h>

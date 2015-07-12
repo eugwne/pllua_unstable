@@ -73,7 +73,7 @@ Datum pllua_inline_handler(PG_FUNCTION_ARGS) {
 
 
 static const int tuple_info = 0;
-void *p_tuple_info()
+const void *p_tuple_info(void)
 {
     return &tuple_info;
 }
