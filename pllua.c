@@ -72,15 +72,11 @@ Datum pllua_inline_handler(PG_FUNCTION_ARGS) {
 #endif
 
 
-static const int tuple_info = 0;
-const void *p_tuple_info(void)
-{
-    return &tuple_info;
-}
+void p_lua_mem_cxt(void){}
 
 MemoryContext luaP_getmemctxt(lua_State *L) {
     MemoryContext mcxt;
-    lua_pushlightuserdata(L, (void *) L);
+    lua_pushlightuserdata(L, p_lua_mem_cxt);
     lua_rawget(L, LUA_REGISTRYINDEX);
     mcxt = (MemoryContext) lua_touserdata(L, -1);
     lua_pop(L, 1);

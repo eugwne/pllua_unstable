@@ -474,6 +474,7 @@ void luaP_close (lua_State *L) {
 
 lua_State *luaP_newstate (int trusted) {
   int status;
+
   MemoryContext mcxt = AllocSetContextCreate(TopMemoryContext,
       "PL/Lua context", ALLOCSET_DEFAULT_MINSIZE, ALLOCSET_DEFAULT_INITSIZE,
       ALLOCSET_DEFAULT_MAXSIZE);
@@ -482,7 +483,7 @@ lua_State *luaP_newstate (int trusted) {
   lua_pushliteral(L, PLLUA_VERSION);
   lua_setglobal(L, "_PLVERSION");
   /* memory context */
-  lua_pushlightuserdata(L, (void *) L);
+  lua_pushlightuserdata(L, p_lua_mem_cxt);
   lua_pushlightuserdata(L, (void *) mcxt);
   lua_rawset(L, LUA_REGISTRYINDEX);
   /* core libs */
@@ -557,11 +558,7 @@ lua_State *luaP_newstate (int trusted) {
   lua_pushglobaltable(L);
   luaP_register(L, luaP_funcs);
   lua_pop(L, 1);
-  //----------------------------------
-  lua_pushlightuserdata(L, p_tuple_info);
-  lua_newtable(L);
-  lua_settable(L, LUA_REGISTRYINDEX);
-  //----------------------------------
+
   /* SPI */
   luaP_registerspi(L);
   lua_setglobal(L, PLLUA_SPIVAR);
@@ -1167,10 +1164,13 @@ static Datum luaP_getresult (lua_State *L, FunctionCallInfo fcinfo,
 /* ======= luaP_callhandler ======= */
 
 static void luaP_cleanthread (lua_State *L, lua_State **thread) {
-  lua_pushlightuserdata(L, (void *) *thread);
-  lua_pushnil(L);
-  lua_rawset(L, LUA_REGISTRYINDEX);
-  *thread = NULL;
+    /*clean before drop thread(before caused errors
+      when  tuples collected and the thread had cleaned)*/
+    lua_gc(*thread, LUA_GCCOLLECT, 0);
+    lua_pushlightuserdata(L, (void *) *thread);
+    lua_pushnil(L);
+    lua_rawset(L, LUA_REGISTRYINDEX);
+    *thread = NULL;
 }
 
 Datum luaP_validator (lua_State *L, Oid oid) {

@@ -7,10 +7,9 @@ typedef struct _RTupDesc{
     int ref_count;
     lua_State *L;
     TupleDesc tupdesc;
-    int free_tupdesc;
 } RTupDesc;
 
-RTupDesc* rtupdesc_ctor(lua_State * state, TupleDesc tupdesc, int free_tupdesc);
+RTupDesc* rtupdesc_ctor(lua_State * state, TupleDesc tupdesc);
 
 RTupDesc* rtupdesc_ref(RTupDesc* rtupdesc);
 

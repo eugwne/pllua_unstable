@@ -9,12 +9,9 @@
 
 #include "plluacommon.h"
 
-
-
-const void *p_tuple_info(void);
-
-
-
+/*used as a key for saving lua context lua_pushlightuserdata(p_lua_mem_cxt)
+  instead of lua_pushlightuserdata((void*)L) (in SRF the L is a lua_newthread)  */
+void p_lua_mem_cxt(void);
 
 typedef struct luaP_Buffer {
   int size;

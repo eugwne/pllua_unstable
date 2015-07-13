@@ -156,7 +156,7 @@ static int luaP_rowsaux (lua_State *L) {
     if (SPI_processed > 0) { /* any row? */
         if(c->rtupdesc == 0){
 
-            c->rtupdesc = rtupdesc_ctor(L,SPI_tuptable->tupdesc, 1);
+            c->rtupdesc = rtupdesc_ctor(L,SPI_tuptable->tupdesc);
 
         }
         if (!init) { /* register tupdesc */
@@ -413,7 +413,7 @@ static void luaP_pushtuptable (lua_State *L, Portal cursor) {
     }
     t->size = SPI_processed;
     t->tuptable = SPI_tuptable;
-    t->rtupdesc = rtupdesc_ctor(L,SPI_tuptable->tupdesc,0);
+    t->rtupdesc = rtupdesc_ctor(L,SPI_tuptable->tupdesc);
 
     if (cursor == NULL || (cursor != NULL && t->cursor != cursor)) {
         t->cursor = cursor;

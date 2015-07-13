@@ -64,7 +64,7 @@ MemoryContext luaP_getmemctxt (lua_State *L);
 
 #define MTOLUA(state) {MemoryContext ___mcxt,___m;\
     ___mcxt = luaP_getmemctxt(state); \
-    ___m  = MemoryContextSwitchTo(___mcxt);
+    ___m  = MemoryContextSwitchTo(___mcxt)
 
 #define MTOPG MemoryContextSwitchTo(___m);}
 
