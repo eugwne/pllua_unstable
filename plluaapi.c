@@ -7,6 +7,7 @@
 #include "pllua.h"
 #include "rowstamp.h"
 #include "lua_int64.h"
+#include "rtupdescstk.h"
 
 /*
  * [[ Uses of REGISTRY ]]
@@ -27,6 +28,7 @@
 
 /* extended function info */
 typedef struct luaP_Info {
+  RTupDescStack funcxt;
   int oid;
   int vararg;
   Oid result;
@@ -322,6 +324,7 @@ static Datum luaP_gettriggerresult (lua_State *L) {
 }
 
 static void luaP_cleantrigger (lua_State *L) {
+  rtds_clean(rtds_get_current()); //fi->functx;
   lua_pushglobaltable(L);
   lua_pushstring(L, PLLUA_TRIGGERVAR);
   lua_pushnil(L);
@@ -486,6 +489,10 @@ lua_State *luaP_newstate (int trusted) {
   lua_pushlightuserdata(L, p_lua_mem_cxt);
   lua_pushlightuserdata(L, (void *) mcxt);
   lua_rawset(L, LUA_REGISTRYINDEX);
+
+  lua_pushlightuserdata(L, p_lua_master_state);
+  lua_pushlightuserdata(L, (void *) L);
+  lua_rawset(L, LUA_REGISTRYINDEX);
   /* core libs */
   if (trusted) {
     const luaL_Reg luaP_trusted_libs[] = {
@@ -605,6 +612,7 @@ static luaP_Info *luaP_newinfo (lua_State *L, int nargs, int oid,
   int i;
   luaP_Typeinfo *ti;
   fi = lua_newuserdata(L, sizeof(luaP_Info) + nargs * sizeof(Oid));
+  fi->funcxt = NULL;
   fi->oid = oid;
   /* read arg types */
   for (i = 0; i < nargs; i++) {
@@ -1163,10 +1171,9 @@ static Datum luaP_getresult (lua_State *L, FunctionCallInfo fcinfo,
 
 /* ======= luaP_callhandler ======= */
 
-static void luaP_cleanthread (lua_State *L, lua_State **thread) {
-    /*clean before drop thread(before caused errors
-      when  tuples collected and the thread had cleaned)*/
-    lua_gc(*thread, LUA_GCCOLLECT, 0);
+static void luaP_cleanthread (lua_State *L, lua_State **thread, luaP_Info *fi) {
+    //out("fxt = %p =  %i",fi->funcxt, fi->funcxt->ref_count);
+    fi->funcxt = rtds_free_if_not_used(fi->funcxt);
     lua_pushlightuserdata(L, (void *) *thread);
     lua_pushnil(L);
     lua_rawset(L, LUA_REGISTRYINDEX);
@@ -1198,11 +1205,18 @@ Datum luaP_validator (lua_State *L, Oid oid) {
 Datum luaP_callhandler (lua_State *L, FunctionCallInfo fcinfo) {
   Datum retval = 0;
   luaP_Info *fi;
+  RTupDescStack prev;
   bool istrigger;
   if (SPI_connect() != SPI_OK_CONNECT)
     elog(ERROR, "[pllua]: could not connect to SPI manager");
   istrigger = CALLED_AS_TRIGGER(fcinfo);
   fi = luaP_pushfunction(L, (int) fcinfo->flinfo->fn_oid);
+  if (fi->funcxt == NULL){
+      fi->funcxt = rtds_initStack(L);
+  }
+  rtds_inuse(fi->funcxt);
+
+  prev = rtds_set_current(fi->funcxt);
   PG_TRY();
   {
     if ((fi->result == TRIGGEROID && !istrigger)
@@ -1249,11 +1263,13 @@ Datum luaP_callhandler (lua_State *L, FunctionCallInfo fcinfo) {
         }
         lua_xmove(L, fi->L, 1); /* function */
         luaP_pushargs(fi->L, fcinfo, fi);
+
 #if LUA_VERSION_NUM <= 501
         status = lua_resume(fi->L, fcinfo->nargs);
 #else
         status = lua_resume(fi->L, fi->L, fcinfo->nargs);
 #endif
+        rtds_notinuse(fi->funcxt);
         hasresult = !lua_isnoneornil(fi->L, 1);
         if (status == LUA_YIELD && hasresult) {
           rsi->isDone = ExprMultipleResult; /* SRF: next */
@@ -1263,7 +1279,7 @@ Datum luaP_callhandler (lua_State *L, FunctionCallInfo fcinfo) {
           rsi->isDone = ExprEndResult; /* SRF: done */
           fcinfo->isnull = true;
           retval = (Datum) 0;
-          luaP_cleanthread(L, &fi->L);
+          luaP_cleanthread(L, &fi->L, fi);
         }
         else {
 #if defined(PLLUA_DEBUG)
@@ -1276,12 +1292,16 @@ Datum luaP_callhandler (lua_State *L, FunctionCallInfo fcinfo) {
       else {
         luaP_pushargs(L, fcinfo, fi);
         if (lua_pcall(L, fcinfo->nargs, 1, 0)){
+
+            fi->funcxt = rtds_unref(fi->funcxt);
 #if defined(PLLUA_DEBUG)
         luaP_error(L, getLINE());
 #else
         luaP_error(L, "runtime");
 #endif
     }
+        fi->funcxt = rtds_unref(fi->funcxt);
+
         retval = luaP_getresult(L, fcinfo, fi->result);
       }
     }
@@ -1291,8 +1311,9 @@ Datum luaP_callhandler (lua_State *L, FunctionCallInfo fcinfo) {
   {
     if (L != NULL) {
       luaP_cleantrigger(L);
+      rtds_notinuse(fi->funcxt);
       if (fi->result_isset && fi->L != NULL) /* clean thread? */
-        luaP_cleanthread(L, &fi->L);
+        luaP_cleanthread(L, &fi->L, fi);
       lua_settop(L, 0); /* clear Lua stack */
     }
     fcinfo->isnull = true;
@@ -1300,28 +1321,39 @@ Datum luaP_callhandler (lua_State *L, FunctionCallInfo fcinfo) {
     PG_RE_THROW();
   }
   PG_END_TRY();
+  rtds_set_current(prev);
   if (SPI_finish() != SPI_OK_FINISH)
     elog(ERROR, "[pllua]: could not disconnect from SPI manager");
   return retval;
 }
 
+#include "rtupdesc.h"
 #if PG_VERSION_NUM >= 90000
 /* ======= luaP_inlinehandler ======= */
 
 Datum luaP_inlinehandler (lua_State *L, const char *source) {
+    RTupDescStack funcxt;
+    RTupDescStack prev;
   if (SPI_connect() != SPI_OK_CONNECT)
     elog(ERROR, "[pllua]: could not connect to SPI manager");
+
+  funcxt = rtds_initStack(L);
+  rtds_inuse(funcxt);
+
+  prev = rtds_set_current(funcxt);
   PG_TRY();
   {
     if (luaL_loadbuffer(L, source, strlen(source), PLLUA_CHUNKNAME))
       luaP_error(L, "compile");
     if (lua_pcall(L, 0, 0, 0)) {
+        rtds_clean(rtds_get_current());
 #if defined(PLLUA_DEBUG)
         luaP_error(L, getLINE());
 #else
         luaP_error(L, "runtime");
 #endif
     }
+
   }
   PG_CATCH();
   {
@@ -1329,6 +1361,10 @@ Datum luaP_inlinehandler (lua_State *L, const char *source) {
     PG_RE_THROW();
   }
   PG_END_TRY();
+
+  funcxt = rtds_unref(funcxt);
+  rtds_set_current(prev);
+
   if (SPI_finish() != SPI_OK_FINISH)
     elog(ERROR, "[pllua]: could not disconnect from SPI manager");
   PG_RETURN_VOID();

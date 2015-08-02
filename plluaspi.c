@@ -148,16 +148,13 @@ static int luaP_rowsaux (lua_State *L) {
     int init;
 
     BEGINLUA;
-
     c = (luaP_Cursor *) lua_touserdata(L, lua_upvalueindex(1));
     init = lua_toboolean(L, lua_upvalueindex(2));
 
     SPI_cursor_fetch(c->cursor, 1, 1);
     if (SPI_processed > 0) { /* any row? */
         if(c->rtupdesc == 0){
-
             c->rtupdesc = rtupdesc_ctor(L,SPI_tuptable->tupdesc);
-
         }
         if (!init) { /* register tupdesc */
             lua_pushboolean(L, 1);
@@ -165,14 +162,15 @@ static int luaP_rowsaux (lua_State *L) {
         }
         pushCustomTuple(L, SPI_tuptable->tupdesc, SPI_tuptable->vals[0],
                 1, c->rtupdesc);
-        SPI_freetuptable(SPI_tuptable);
+        //SPI_freetuptable(SPI_tuptable);
     }
     else {
-
         rtupdesc_unref(c->rtupdesc);
         SPI_cursor_close(c->cursor);
         lua_pushnil(L);
     }
+    SPI_freetuptable(SPI_tuptable);
+
 
     ENDLUAV(1);
     return 1;
@@ -231,7 +229,12 @@ static int luaP_tupleindex (lua_State *L) {
   int i =-1;
   int idx = -1;
   if (t->rtupdesc){
-      TupleDesc tupleDesc = t->rtupdesc->tupdesc;
+      TupleDesc tupleDesc = rtupdesc_gettup(t->rtupdesc);
+      if (tupleDesc == NULL){
+          ereport(WARNING, (errmsg("access to lost tuple desc at  '%s'", name)));
+          lua_pushnil(L);
+          return 1;
+      }
       for (i = 0; i< tupleDesc->natts; ++i){
 
           if (strcmp(NameStr(tupleDesc->attrs[i]->attname),name) == 0){
@@ -245,15 +248,19 @@ static int luaP_tupleindex (lua_State *L) {
             luaP_pushdatum(L, t->value[i], tupleDesc->attrs[i]->atttypid);
           else lua_pushnil(L);
       }
-      else lua_pushnil(L);
+      else {
+          ereport(WARNING, (errmsg("tuple has no field '%s'", name)));
+          lua_pushnil(L);
+      }
       return 1;
   }
+  //triggers data
 
 
-      lua_pushinteger(L, (int) t->relid);
-      lua_rawget(L, LUA_REGISTRYINDEX);
-      lua_getfield(L, -1, name);
-      i = luaL_optinteger(L, -1, -1);
+  lua_pushinteger(L, (int) t->relid);
+  lua_rawget(L, LUA_REGISTRYINDEX);
+  lua_getfield(L, -1, name);
+  i = luaL_optinteger(L, -1, -1);
 
 
   if (i >= 0) {
@@ -634,6 +641,7 @@ static int luaP_rowsplan (lua_State *L) {
   }
   else
     cursor = SPI_cursor_open(NULL, p->plan, NULL, NULL, 1);
+
   if (cursor == NULL)
     return luaL_error(L, "error opening cursor");
   luaP_pushcursor(L, cursor);
@@ -719,17 +727,26 @@ static int luaP_find (lua_State *L) {
 
 static int luaP_rows (lua_State *L) {
   Portal cursor;
-  SPI_plan *p = SPI_prepare_cursor(luaL_checkstring(L, 1), 0, NULL, 0);
-  if (SPI_result < 0)
-    return luaL_error(L, "SPI_prepare error: %d", SPI_result);
-  if (!SPI_is_cursor_plan(p))
-    return luaL_error(L, "Statement is not iterable");
-  cursor = SPI_cursor_open(NULL, p, NULL, NULL, 1);
-  if (cursor == NULL)
-    return luaL_error(L, "error opening cursor");
-  luaP_pushcursor(L, cursor);
-  lua_pushboolean(L, 0); /* not inited */
-  lua_pushcclosure(L, luaP_rowsaux, 2);
+//  PG_TRY();
+//  {
+      SPI_plan *p = SPI_prepare_cursor(luaL_checkstring(L, 1), 0, NULL, 0);
+      if (SPI_result < 0)
+        return luaL_error(L, "SPI_prepare error: %d", SPI_result);
+      if (!SPI_is_cursor_plan(p))
+        return luaL_error(L, "Statement is not iterable");
+      cursor = SPI_cursor_open(NULL, p, NULL, NULL, 1);
+      SPI_freeplan(p);
+      if (cursor == NULL)
+        return luaL_error(L, "error opening cursor");
+      luaP_pushcursor(L, cursor);
+      lua_pushboolean(L, 0); /* not inited */
+      lua_pushcclosure(L, luaP_rowsaux, 2);
+//  }
+//  PG_CATCH();
+//  {
+//      return luaL_error(L, "SPI_prepare error: %d", SPI_result);
+//  }
+//  PG_END_TRY();
   return 1;
 }
 

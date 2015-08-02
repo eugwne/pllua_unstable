@@ -39,7 +39,8 @@ pllua_debug.o \
 plluaapi.o \
 plluaspi.o \
 lua_int64.o \
-rtupdesc.o
+rtupdesc.o \
+rtupdescstk.o
 
 PG_CPPFLAGS = $(LUAINC)
 SHLIB_LINK = $(LUALIB)
@@ -48,5 +49,5 @@ SHLIB_LINK = $(LUALIB)
 PG_CONFIG ?= pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
-#override CPPFLAGS := -I. -I$(srcdir) $(CPPFLAGS) -DPLLUA_DEBUG
+override CPPFLAGS := -I. -I$(srcdir) $(CPPFLAGS) -DPLLUA_DEBUG
 

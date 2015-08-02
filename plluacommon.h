@@ -62,6 +62,8 @@ void luaL_setfuncs (lua_State *L, const luaL_Reg *l, int nup);
 /* get MemoryContext for state L */
 MemoryContext luaP_getmemctxt (lua_State *L);
 
+lua_State *pllua_getmaster (lua_State *L);
+
 #define MTOLUA(state) {MemoryContext ___mcxt,___m;\
     ___mcxt = luaP_getmemctxt(state); \
     ___m  = MemoryContextSwitchTo(___mcxt)
