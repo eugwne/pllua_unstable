@@ -281,6 +281,7 @@ static void luaP_preptrigger (lua_State *L, TriggerData *tdata) {
   luaP_pushdesctable(L, tdata->tg_relation->rd_att);
   lua_pushinteger(L, (int) tdata->tg_relation->rd_id);
   lua_pushvalue(L, -2); /* attribute table */
+  //out("284");
   lua_rawset(L, LUA_REGISTRYINDEX); /* cache desc */
   lua_setfield(L, -2, "attributes");
   lua_pushinteger(L, (int) tdata->tg_relation->rd_id);
@@ -293,15 +294,15 @@ static void luaP_preptrigger (lua_State *L, TriggerData *tdata) {
   /* row */
   if (TRIGGER_FIRED_FOR_ROW(tdata->tg_event)) {
     if (TRIGGER_FIRED_BY_UPDATE(tdata->tg_event)) {
-      luaP_pushtuple(L, tdata->tg_relation->rd_att, tdata->tg_newtuple,
+      luaP_pushtuple_trg(L, tdata->tg_relation->rd_att, tdata->tg_newtuple,
           tdata->tg_relation->rd_id, 0);
       lua_setfield(L, -2, "row"); /* new row */
-      luaP_pushtuple(L, tdata->tg_relation->rd_att, tdata->tg_trigtuple,
+      luaP_pushtuple_trg(L, tdata->tg_relation->rd_att, tdata->tg_trigtuple,
           tdata->tg_relation->rd_id, 1);
       lua_setfield(L, -2, "old"); /* old row */
     }
     else { /* insert or delete */
-      luaP_pushtuple(L, tdata->tg_relation->rd_att, tdata->tg_trigtuple,
+      luaP_pushtuple_trg(L, tdata->tg_relation->rd_att, tdata->tg_trigtuple,
           tdata->tg_relation->rd_id, 0);
       lua_setfield(L, -2, "row"); /* old row */
     }
@@ -324,7 +325,7 @@ static Datum luaP_gettriggerresult (lua_State *L) {
 }
 
 static void luaP_cleantrigger (lua_State *L) {
-  rtds_clean(rtds_get_current()); //fi->functx;
+  rtds_tryclean(rtds_get_current()); //fi->functx;
   lua_pushglobaltable(L);
   lua_pushstring(L, PLLUA_TRIGGERVAR);
   lua_pushnil(L);
@@ -809,7 +810,6 @@ void luaP_pushdatum (lua_State *L, Datum dat, Oid type) {
       lua_pushinteger(L, (lua_Integer) DatumGetInt32(dat));
       break;
     case INT8OID:
-	//pushint64 lua_int64.c
         setInt64lua(L,(DatumGetInt64(dat)));
         break;
     case TEXTOID:
@@ -1172,7 +1172,6 @@ static Datum luaP_getresult (lua_State *L, FunctionCallInfo fcinfo,
 /* ======= luaP_callhandler ======= */
 
 static void luaP_cleanthread (lua_State *L, lua_State **thread, luaP_Info *fi) {
-    //out("fxt = %p =  %i",fi->funcxt, fi->funcxt->ref_count);
     fi->funcxt = rtds_free_if_not_used(fi->funcxt);
     lua_pushlightuserdata(L, (void *) *thread);
     lua_pushnil(L);
@@ -1310,8 +1309,8 @@ Datum luaP_callhandler (lua_State *L, FunctionCallInfo fcinfo) {
   PG_CATCH();
   {
     if (L != NULL) {
-      luaP_cleantrigger(L);
-      rtds_notinuse(fi->funcxt);
+      luaP_cleantrigger(L);//fi->funcxt ref--
+
       if (fi->result_isset && fi->L != NULL) /* clean thread? */
         luaP_cleanthread(L, &fi->L, fi);
       lua_settop(L, 0); /* clear Lua stack */
@@ -1346,7 +1345,8 @@ Datum luaP_inlinehandler (lua_State *L, const char *source) {
     if (luaL_loadbuffer(L, source, strlen(source), PLLUA_CHUNKNAME))
       luaP_error(L, "compile");
     if (lua_pcall(L, 0, 0, 0)) {
-        rtds_clean(rtds_get_current());
+        funcxt = rtds_unref(funcxt);
+        rtds_set_current(prev);
 #if defined(PLLUA_DEBUG)
         luaP_error(L, getLINE());
 #else

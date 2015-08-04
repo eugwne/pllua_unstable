@@ -6,7 +6,6 @@ RTupDesc *rtupdesc_ctor(lua_State *state, TupleDesc tupdesc)
 {
     void* p;
     RTupDesc* rtupdesc = 0;
-    state = pllua_getmaster(state);
 
     MTOLUA(state);
     p = palloc(sizeof(RTupDesc));

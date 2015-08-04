@@ -22,19 +22,11 @@ static void clean(RTupDescStack S){
     }
 }
 
-void rtds_clean(RTupDescStack S){
-    void *top;
+void rtds_tryclean(RTupDescStack S){
     if (S == NULL) return;
     S->ref_count -= 1;
     if (S->ref_count != 0) return;
-    top = rtds_pop(S);
-
-    while (top) {
-        RTupDesc* rtupdesc = (RTupDesc*)top;
-        rtupdesc_freedesc(rtupdesc);
-        rtupdesc->weakNodeStk = NULL;
-        top = rtds_pop(S);
-    }
+    clean(S);
 }
 
 void *rtds_pop(RTupDescStack S) {
@@ -53,7 +45,7 @@ void *rtds_pop(RTupDescStack S) {
 }
 
 
-RTDNodePtr rtds_push(RTupDescStack S, void *d) {
+static RTDNodePtr rtds_push(RTupDescStack S, void *d) {
     RTDNodePtr np;
     if (S == NULL) return NULL;
     MTOLUA(S->L);
@@ -77,6 +69,7 @@ int rtds_isempty(RTupDescStack S) {
 
 RTupDescStack rtds_initStack(lua_State *L) {
     RTupDescStack sp;
+    L = pllua_getmaster(L);
     MTOLUA(L);
     sp = (RTupDescStack) palloc(sizeof(RTupDescStackType));
     MTOPG;
@@ -96,12 +89,8 @@ RTDNodePtr rtds_push_current(void *d)
 RTupDescStack rtds_unref(RTupDescStack S)
 {
     if (S == NULL) return NULL;
-    rtds_clean(S);
-    if (S->ref_count == 0){
-        pfree(S);
-        return NULL;
-    }
-    return S;
+    rtds_notinuse(S);
+    return rtds_free_if_not_used(S);
 }
 
 
