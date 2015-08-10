@@ -17,6 +17,7 @@ typedef struct stackType {
     int ref_count;
     lua_State *L;
     RTDNodePtr top;
+    void *resptr;
 } RTupDescStackType, *RTupDescStack;
 
 RTupDescStack rtds_set_current(void *s);

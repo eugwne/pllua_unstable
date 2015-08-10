@@ -36,6 +36,7 @@ biginttest
 OBJS = \
 pllua.o \
 pllua_debug.o \
+pllua_xact_cleanup.o \
 plluaapi.o \
 plluaspi.o \
 lua_int64.o \

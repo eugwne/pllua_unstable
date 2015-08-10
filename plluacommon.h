@@ -6,6 +6,7 @@
 #include <fmgr.h>
 #include <funcapi.h>
 #include <access/heapam.h>
+#include <access/xact.h>
 #if PG_VERSION_NUM >= 90300
 #include <access/htup_details.h>
 #endif
