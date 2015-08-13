@@ -144,3 +144,9 @@ void pllua_delete_common_ctx()
     pfree(resource_stk);
     MemoryContextDelete(cmn_ctx);
 }
+
+
+MemoryContext get_common_ctx()
+{
+    return cmn_ctx;
+}

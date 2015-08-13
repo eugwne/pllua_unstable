@@ -110,5 +110,22 @@ void luaL_setfuncs(lua_State *L, const luaL_Reg *l, int nup) {
     lua_pop(L, nup);  /* remove upvalues */
 }
 
+int pg_to_regtype(char *typ_name)
+{
+
+    Oid			result;
+    int32		typmod;
+
+    /*
+     * Invoke the full parser to deal with special cases such as array syntax.
+     */
+    parseTypeString(typ_name, &result, &typmod, true);
+
+    if (OidIsValid(result))
+        return result;
+    else
+        return -1;
+}
+
 
 

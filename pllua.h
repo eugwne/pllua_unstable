@@ -34,7 +34,7 @@ Datum luaP_inlinehandler (lua_State *L, const char *source);
 #endif
 /* general API */
 void luaP_pushdatum (lua_State *L, Datum dat, Oid type);
-Datum luaP_todatum (lua_State *L, Oid type, int len, bool *isnull);
+Datum luaP_todatum (lua_State *L, Oid type, int len, bool *isnull, int idx);
 
 void luaP_pushtuple_trg (lua_State *L, TupleDesc desc, HeapTuple tuple,
     Oid relid, int readonly);
