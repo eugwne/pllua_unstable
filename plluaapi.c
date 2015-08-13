@@ -9,6 +9,9 @@
 #include "lua_int64.h"
 #include "rtupdescstk.h"
 
+#include "pllua_hstore.h"
+
+
 /*
  * [[ Uses of REGISTRY ]]
  * [general]
@@ -459,6 +462,25 @@ static int luaP_fromstring (lua_State *L) {
   return 1;
 }
 
+static int luaP_register_type (lua_State *L) {
+  const char* reg_name = luaL_checkstring(L, 1);
+  const char* schema_name = NULL;
+  if (lua_gettop(L) == 2){
+      schema_name = luaL_checkstring(L, 2);
+  }
+
+  if (strcmp(reg_name, "hstore") == 0){
+      int oid = register_hstore_tn(L, schema_name);
+      if (oid<=0){
+          return luaL_error(L, "can't register %s", reg_name);
+      }
+      lua_pushinteger(L, oid);
+      return 1;
+  }
+
+  return luaL_error(L, "unknown type %s", reg_name);
+}
+
 static const luaL_Reg luaP_funcs[] = {
   {"setshared", luaP_setshared},
   {"log", luaP_log},
@@ -467,6 +489,7 @@ static const luaL_Reg luaP_funcs[] = {
   {"notice", luaP_notice},
   {"warning", luaP_warning},
   {"fromstring", luaP_fromstring},
+  {"register_type", luaP_register_type},
   {NULL, NULL}
 };
 
@@ -538,6 +561,8 @@ lua_State *luaP_newstate (int trusted) {
     luaL_openlibs(L);
 
   register_int64(L);
+  register_hstore_func(L);
+
   /* setup typeinfo and raw datum MTs */
   lua_pushlightuserdata(L, (void *) PLLUA_TYPEINFO);
   lua_newtable(L); /* luaP_Typeinfo MT */
@@ -791,7 +816,11 @@ static void luaP_pusharray (lua_State *L, char **p, int ndims,
   }
 }
 
+
+extern int hstore_oid;
+
 void luaP_pushdatum (lua_State *L, Datum dat, Oid type) {
+
   switch (type) {
     /* base and domain types */
     case BOOLOID:
@@ -812,6 +841,7 @@ void luaP_pushdatum (lua_State *L, Datum dat, Oid type) {
     case INT8OID:
         setInt64lua(L,(DatumGetInt64(dat)));
         break;
+
     case TEXTOID:
       lua_pushstring(L, text2string(dat));
       break;
@@ -828,7 +858,14 @@ void luaP_pushdatum (lua_State *L, Datum dat, Oid type) {
       break;
     }
     default: {
-      luaP_Typeinfo *ti = luaP_gettypeinfo(L, type);
+      luaP_Typeinfo *ti;
+
+      if (type == hstore_oid){
+        setHstoreFromDatum(L, dat);
+        break;
+      }
+
+      ti = luaP_gettypeinfo(L, type);
       switch (ti->type) {
         case 'c': { /* complex? */
           HeapTupleHeader tup = DatumGetHeapTupleHeader(dat);
@@ -937,7 +974,7 @@ static int luaP_getarraydims (lua_State *L, int *ndims, int *dims,
       }
       else {
         bool isnull;
-        Datum d = luaP_todatum(L, typeelem, typmod, &isnull);
+        Datum d = luaP_todatum(L, typeelem, typmod, &isnull, -1);
         Pointer v = DatumGetPointer(d);
         n = 0;
         if (ti->len == -1) /* varlena? */
@@ -967,7 +1004,7 @@ static void luaP_toarray (lua_State *L, char **p, int ndims,
     for (i = 0; i < (*dims); i++) {
       Pointer v;
       lua_rawgeti(L, -1, (*lb) + i);
-      v = DatumGetPointer(luaP_todatum(L, typeelem, typmod, &isnull));
+      v = DatumGetPointer(luaP_todatum(L, typeelem, typmod, &isnull, -1));
       if (!isnull) {
         *bitval |= *bitmask;
         if (ti->len > 0) {
@@ -1011,60 +1048,67 @@ static void luaP_toarray (lua_State *L, char **p, int ndims,
   }
 }
 
-Datum luaP_todatum (lua_State *L, Oid type, int typmod, bool *isnull) {
+Datum luaP_todatum (lua_State *L, Oid type, int typmod, bool *isnull, int idx) {
   Datum dat = 0; /* NULL */
-  *isnull = lua_isnil(L, -1);
+  *isnull = lua_isnil(L, idx);
   if (!(*isnull || type == VOIDOID)) {
     switch (type) {
       /* base and domain types */
       case BOOLOID:
-        dat = BoolGetDatum(lua_toboolean(L, -1));
+        dat = BoolGetDatum(lua_toboolean(L, idx));
         break;
       case FLOAT4OID:
-        dat = Float4GetDatum((float4) lua_tonumber(L, -1));
+        dat = Float4GetDatum((float4) lua_tonumber(L, idx));
         break;
       case FLOAT8OID:
-        dat = Float8GetDatum((float8) lua_tonumber(L, -1));
+        dat = Float8GetDatum((float8) lua_tonumber(L, idx));
         break;
       case INT2OID:
-        dat = Int16GetDatum(lua_tointeger(L, -1));
+        dat = Int16GetDatum(lua_tointeger(L, idx));
         break;
       case INT4OID:
-        dat = Int32GetDatum(lua_tointeger(L, -1));
+        dat = Int32GetDatum(lua_tointeger(L, idx));
         break;
       case INT8OID:
-        dat = Int64GetDatum(get64lua(L, -1));
+        dat = Int64GetDatum(get64lua(L, idx));
         break;
       case TEXTOID: {
-        const char *s = lua_tostring(L, -1);
+        const char *s = lua_tostring(L, idx);
         if (s == NULL) elog(ERROR,
             "[pllua]: string expected for datum conversion, got %s",
-            lua_typename(L, lua_type(L, -1)));
+            lua_typename(L, lua_type(L, idx)));
         dat = string2text(s);
         break;
       }
       case REFCURSOROID: {
-        Portal cursor = luaP_tocursor(L, -1);
+        Portal cursor = luaP_tocursor(L, idx);
         dat = string2text(cursor->name);
         break;
       }
       default: {
-        luaP_Typeinfo *ti = luaP_gettypeinfo(L, type);
+        luaP_Typeinfo *ti;
+
+          if (type == hstore_oid){
+            dat = getHStoreDatum(L, idx);
+            break;
+          }
+
+        ti = luaP_gettypeinfo(L, type);
         switch (ti->type) {
           case 'c': /* complex? */
-            if (lua_type(L, -1) == LUA_TTABLE) {
+            if (lua_type(L, idx) == LUA_TTABLE) {
               int i;
               luaP_Buffer *b;
-              if (lua_type(L, -1) != LUA_TTABLE)
+              if (lua_type(L, idx) != LUA_TTABLE)
                 elog(ERROR, "[pllua]: table expected for record result, got %s",
-                    lua_typename(L, lua_type(L, -1)));
+                    lua_typename(L, lua_type(L, idx)));
               /* create tuple */
               b = luaP_getbuffer(L, ti->tupdesc->natts);
               for (i = 0; i < ti->tupdesc->natts; i++) {
-                lua_getfield(L, -1, NameStr(ti->tupdesc->attrs[i]->attname));
+                lua_getfield(L, idx, NameStr(ti->tupdesc->attrs[i]->attname));
                 /* only simple types allowed in record */
                 b->value[i] = luaP_todatum(L, ti->tupdesc->attrs[i]->atttypid,
-                    ti->tupdesc->attrs[i]->atttypmod, b->null + i);
+                    ti->tupdesc->attrs[i]->atttypmod, b->null + i, idx);
                 lua_pop(L, 1);
               }
               /* make copy in upper executor memory context */
@@ -1076,24 +1120,24 @@ Datum luaP_todatum (lua_State *L, Oid type, int typmod, bool *isnull) {
               if (tuple == NULL)
                 elog(ERROR,
                     "[pllua]: table or tuple expected for record result, got %s",
-                    lua_typename(L, lua_type(L, -1)));
+                    lua_typename(L, lua_type(L, idx)));
               dat = PointerGetDatum(SPI_returntuple(tuple, ti->tupdesc));
             }
             break;
           case 'b': /* base? */
           case 'd': /* domain? */
-            if (ti->elem != 0 && ti->len == -1) { /* array? */
+            if (ti->elem != 0 && ti->len == idx) { /* array? */
               luaP_Typeinfo *te;
               int ndims, dims[MAXDIM], lb[MAXDIM];
               int i, size;
               bool hasnulls;
               ArrayType *a;
-              if (lua_type(L, -1) != LUA_TTABLE)
+              if (lua_type(L, idx) != LUA_TTABLE)
                 elog(ERROR,
                     "[pllua]: table expected for array conversion, got %s",
-                    lua_typename(L, lua_type(L, -1)));
+                    lua_typename(L, lua_type(L, idx)));
               te = luaP_gettypeinfo(L, ti->elem);
-              for (i = 0; i < MAXDIM; i++) dims[i] = lb[i] = -1;
+              for (i = 0; i < MAXDIM; i++) dims[i] = lb[i] = idx;
               size = luaP_getarraydims(L, &ndims, dims, lb, te, ti->elem,
                   typmod, &hasnulls);
               if (size == 0) { /* empty array? */
@@ -1139,16 +1183,16 @@ Datum luaP_todatum (lua_State *L, Oid type, int typmod, bool *isnull) {
               dat = PointerGetDatum(a);
             }
             else {
-              luaP_Datum *d = luaP_toudata(L, -1, PLLUA_DATUM);
+              luaP_Datum *d = luaP_toudata(L, idx, PLLUA_DATUM);
               if (d == NULL) elog(ERROR,
                   "[pllua]: raw datum expected for datum conversion, got %s",
-                  lua_typename(L, lua_type(L, -1)));
+                  lua_typename(L, lua_type(L, idx)));
               dat = datumcopy(d->datum, ti);
             }
             break;
 #if PG_VERSION_NUM >= 80300
           case 'e': /* enum? */
-            dat = Int32GetDatum(lua_tointeger(L, -1));
+            dat = Int32GetDatum(lua_tointeger(L, idx));
             break;
 #endif
           case 'p': /* pseudo? */
@@ -1163,7 +1207,7 @@ Datum luaP_todatum (lua_State *L, Oid type, int typmod, bool *isnull) {
 
 static Datum luaP_getresult (lua_State *L, FunctionCallInfo fcinfo,
     Oid type) {
-  Datum dat = luaP_todatum(L, type, 0, &fcinfo->isnull);
+  Datum dat = luaP_todatum(L, type, 0, &fcinfo->isnull, -1);
   lua_settop(L, 0);
   return dat;
 }

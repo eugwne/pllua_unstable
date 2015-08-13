@@ -70,5 +70,6 @@ lua_State *pllua_getmaster (lua_State *L);
     ___m  = MemoryContextSwitchTo(___mcxt)
 
 #define MTOPG MemoryContextSwitchTo(___m);}
+int pg_to_regtype(char *typ_name);
 
 #endif // PLLUACOMMON_H

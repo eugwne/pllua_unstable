@@ -278,7 +278,7 @@ static void luaP_fillbuffer (lua_State *L, int pos, Oid *type,
     if (k > 0) {
       bool isnull;
       k--; /* zero based */
-      b->value[k] = luaP_todatum(L, type[k], 0, &isnull);
+      b->value[k] = luaP_todatum(L, type[k], 0, &isnull, -1);
       b->null[k] = (isnull) ? 'n' : ' ';
     }
     lua_pop(L, 1);
@@ -507,7 +507,7 @@ static int luaP_tuplenewindex (lua_State *L) {
   if (i >= 0) { /* found? */
     bool isnull;
     t->value[i] = luaP_todatum(L, t->tupdesc->attrs[i]->atttypid,
-        t->tupdesc->attrs[i]->atttypmod, &isnull);
+        t->tupdesc->attrs[i]->atttypmod, &isnull, -1);
     t->null[i] = isnull;
     t->changed = 1;
   }
