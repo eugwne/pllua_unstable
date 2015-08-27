@@ -22,10 +22,13 @@ Datum pllua_inline_handler(PG_FUNCTION_ARGS);
 Datum plluau_inline_handler(PG_FUNCTION_ARGS);
 #endif
 
+#include "pllua_xact_cleanup.h"
 PG_FUNCTION_INFO_V1(_PG_init);
 Datum _PG_init(PG_FUNCTION_ARGS) {
+  pllua_init_common_ctx();
   L[0] = luaP_newstate(0); /* untrusted */
   L[1] = luaP_newstate(1); /* trusted */
+  RegisterXactCallback(pllua_xact_cb, NULL);
   PG_RETURN_VOID();
 }
 
@@ -33,6 +36,7 @@ PG_FUNCTION_INFO_V1(_PG_fini);
 Datum _PG_fini(PG_FUNCTION_ARGS) {
   luaP_close(L[0]);
   luaP_close(L[1]);
+  pllua_delete_common_ctx();
   PG_RETURN_VOID();
 }
 
@@ -72,6 +76,26 @@ Datum pllua_inline_handler(PG_FUNCTION_ARGS) {
 #endif
 
 
+void p_lua_mem_cxt(void){}
+void p_lua_master_state(void){}
+
+MemoryContext luaP_getmemctxt(lua_State *L) {
+    MemoryContext mcxt;
+    lua_pushlightuserdata(L, p_lua_mem_cxt);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    mcxt = (MemoryContext) lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    return mcxt;
+}
+
+lua_State * pllua_getmaster(lua_State *L) {
+    lua_State *master;
+    lua_pushlightuserdata(L, p_lua_master_state);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    master = (lua_State *) lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    return master;
+}
 
 void luaL_setfuncs(lua_State *L, const luaL_Reg *l, int nup) {
     luaL_checkstack(L, nup+1, "too many upvalues");
@@ -85,3 +109,6 @@ void luaL_setfuncs(lua_State *L, const luaL_Reg *l, int nup) {
     }
     lua_pop(L, nup);  /* remove upvalues */
 }
+
+
+
