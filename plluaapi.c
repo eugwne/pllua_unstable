@@ -10,6 +10,7 @@
 #include "rtupdescstk.h"
 
 #include "pllua_hstore.h"
+#include "pllua_pgfunc.h"
 
 
 /*
@@ -490,6 +491,7 @@ static const luaL_Reg luaP_funcs[] = {
   {"warning", luaP_warning},
   {"fromstring", luaP_fromstring},
   {"register_type", luaP_register_type},
+  {"pgfunc", get_pgfunc},
   {NULL, NULL}
 };
 
@@ -560,6 +562,7 @@ lua_State *luaP_newstate (int trusted) {
   else
     luaL_openlibs(L);
 
+  register_funcinfo_mt(L);
   register_int64(L);
   register_hstore_func(L);
 

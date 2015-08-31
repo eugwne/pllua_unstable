@@ -48,7 +48,8 @@ plluaspi.o \
 lua_int64.o \
 pllua_hstore.o \
 rtupdesc.o \
-rtupdescstk.o 
+rtupdescstk.o \
+pllua_pgfunc.o
 
 
 PG_CPPFLAGS = $(LUAINC) -I$(HSTOREINC) #-DPLLUA_DEBUG
