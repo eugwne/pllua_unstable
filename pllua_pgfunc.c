@@ -5,8 +5,37 @@
 #include "pllua_xact_cleanup.h"
 
 #include <catalog/pg_language.h>
+#include <lib/stringinfo.h>
 
 static const char pg_func_type_name[] = "pg_func";
+
+static Oid find_lang_oids(const char* lang){
+    HeapTuple		tuple;
+    tuple = SearchSysCache(LANGNAME, CStringGetDatum(lang), 0, 0, 0);
+    if (HeapTupleIsValid(tuple))
+    {
+        Oid langtupoid = HeapTupleGetOid(tuple);
+        ReleaseSysCache(tuple);
+        return langtupoid;
+    }
+    return 0;
+}
+
+static Oid pllua_oid = 0;
+static Oid plluau_oid = 0;
+static Oid get_pllua_oid(){
+    if (pllua_oid !=0)
+        return pllua_oid;
+    return find_lang_oids("pllua");
+}
+
+static Oid get_plluau_oid(){
+    if (plluau_oid !=0)
+        return plluau_oid;
+    return find_lang_oids("plluau");
+}
+
+
 
 typedef struct{
     Oid         funcid;
@@ -108,9 +137,10 @@ int get_pgfunc(lua_State *L)
     Form_pg_proc proc;
     const char* reg_error = NULL;
     int i;
+    int luasrc = 0;
     Oid funcid = 0;
 
-
+    BEGINLUA;
     if (lua_gettop(L) != 1){
         return luaL_error(L, "pgfunc(text): wrong arguments");
     }
@@ -138,10 +168,15 @@ int get_pgfunc(lua_State *L)
 
     proc = (Form_pg_proc) GETSTRUCT(proctup);
 
-    if ((proc->prolang != INTERNALlanguageId)&&(proc->prolang !=SQLlanguageId)){
+    luasrc = ((proc->prolang == get_pllua_oid())
+              || (proc->prolang == get_plluau_oid()));
+    if ( (proc->prolang != INTERNALlanguageId)
+            &&(proc->prolang != SQLlanguageId)
+            &&(!luasrc) ){
         ReleaseSysCache(proctup);
         return luaL_error(L, "supported only SQL/internal functions");
     }
+
 
 
     lf = (Lua_pgfunc *)lua_newuserdata(L, sizeof(Lua_pgfunc));
@@ -162,6 +197,55 @@ int get_pgfunc(lua_State *L)
                                     &lf->argtypes, &lf->argnames, &lf->argmodes);
 
     m  = MemoryContextSwitchTo(m);
+
+    if (luasrc){
+        bool isnull;
+        text *t;
+        const char *s;
+        luaL_Buffer b;
+        int pcall_result;
+        Datum prosrc;
+
+        if((lf->numargs != 0) || (lf->prorettype != VOIDOID)){
+            luaL_error(L, "pgfunc accepts only void pllua/u functions with zero arguments");
+        }
+
+        prosrc = SysCacheGetAttr(PROCOID, proctup, Anum_pg_proc_prosrc, &isnull);
+        if (isnull) elog(ERROR, "[pgfunc]: null lua prosrc");
+        luaL_buffinit(L, &b);
+
+        luaL_addstring(&b,"do ");
+        t = DatumGetTextP(prosrc);
+        luaL_addlstring(&b, VARDATA(t), VARSIZE(t) - VARHDRSZ);
+        luaL_addstring(&b, " end");
+        luaL_pushresult(&b);
+        s = lua_tostring(L, -1);
+
+        ReleaseSysCache(proctup);
+        clean_pgfuncinfo(lf);
+
+        if (luaL_loadbuffer(L, s, strlen(s), "pgfunc chunk"))
+                  luaL_error(L, "compile");
+
+        lua_remove(L, -2); /*delete source element*/
+
+        pcall_result = lua_pcall(L, 0, 1, 0);
+        lua_remove(L, -2); /*delete chunk*/
+        if(pcall_result == 0){
+            ENDLUAV(1);
+            return 1;
+        }
+
+        if( pcall_result == LUA_ERRRUN)
+            luaL_error(L,"%s %s","Runtime error:",lua_tostring(L, -1));
+        else if(pcall_result == LUA_ERRMEM)
+            luaL_error(L,"%s %s","Memory error:",lua_tostring(L, -1));
+        else if(pcall_result == LUA_ERRERR)
+            luaL_error(L,"%s %s","Error:",lua_tostring(L, -1));
+
+        return luaL_error(L, "pgfunc unknown error");
+    }
+
 
     if (lf->numargs >4){
         reg_error = "not supported function with more than 4 arguments";
@@ -184,6 +268,7 @@ int get_pgfunc(lua_State *L)
 
     ReleaseSysCache(proctup);
 
+    ENDLUAV(1);
     return 1;
 }
 
