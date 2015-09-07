@@ -79,6 +79,17 @@ Datum pllua_inline_handler(PG_FUNCTION_ARGS) {
 void p_lua_mem_cxt(void){}
 void p_lua_master_state(void){}
 
+void push_spi_error(lua_State *L, MemoryContext oldcontext)
+{
+    ErrorData  *edata;
+    /* Save error info */
+    MemoryContextSwitchTo(oldcontext);
+    edata = CopyErrorData();
+    FlushErrorState();
+    lua_pushstring(L, edata->message);
+    FreeErrorData(edata);
+}
+
 MemoryContext luaP_getmemctxt(lua_State *L) {
     MemoryContext mcxt;
     lua_pushlightuserdata(L, p_lua_mem_cxt);

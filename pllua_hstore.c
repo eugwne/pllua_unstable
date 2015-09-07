@@ -311,7 +311,6 @@ int registered = 0;
 
 static int get_hstore_oid(const char* pg_schema_name)
 {
-
     if (hstore_oid > 0) return hstore_oid;
     if (pg_schema_name == NULL)
         hstore_oid = pg_to_regtype("hstore");
@@ -376,17 +375,28 @@ static Oid delete_hstore_text_oid = InvalidOid;
 
 static void init_delete_hstore_text(lua_State *L, const char* hstore_schema){
 
-    char funcname[2*strlen(hstore_schema)+strlen(".delete(.hstore,text)")+1];
+    luaL_Buffer b;
+    const char *funcname;
+
 
     if (OidIsValid(delete_hstore_text_oid))return;
 
+    luaL_buffinit(L, &b);
+
     if (hstore_schema == NULL){
-        sprintf(funcname,"%s", "delete(hstore,text)");
+        luaL_addstring(&b, "delete(hstore,text)");
     }else{
-        sprintf(funcname, "%s.delete(%s.hstore,text)", hstore_schema, hstore_schema);
+        luaL_addstring(&b, hstore_schema);
+        luaL_addstring(&b, ".delete(");
+        luaL_addstring(&b, hstore_schema);
+        luaL_addstring(&b, ".hstore,text)");
     }
+    luaL_pushresult(&b);
+
+    funcname = lua_tostring(L, -1);
 
     delete_hstore_text_oid = DatumGetObjectId(DirectFunctionCall1(regprocedurein, CStringGetDatum(funcname)));
+    lua_pop(L,1);
     if (!OidIsValid(delete_hstore_text_oid)){
         luaL_error(L,"failed to register delete(hstore,text)");
     }
@@ -535,5 +545,4 @@ Datum getHStoreDatum(lua_State *L, int index){
     strg->havetodel = 1;
     return strg->datum;
 }
-
 
