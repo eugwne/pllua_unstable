@@ -783,20 +783,32 @@ static int luaP_plantostring (lua_State *L) {
   return 1;
 }
 
+
+
+
 static int luaP_executeplan (lua_State *L) {
   luaP_Plan *p = (luaP_Plan *) luaP_checkudata(L, 1, PLLUA_PLANMT);
   bool ro = (bool) lua_toboolean(L, 3);
   long c = luaL_optlong(L, 4, 0);
   int result;
-  if (p->nargs > 0) {
-    luaP_Buffer *b;
-    if (lua_type(L, 2) != LUA_TTABLE) luaP_typeerror(L, 2, "table");
-    b = luaP_getbuffer(L, p->nargs);
-    luaP_fillbuffer(L, 2, p->type, b);
-    result = SPI_execute_plan(p->plan, b->value, b->null, ro, c); 
-  }
-  else
-    result = SPI_execute_plan(p->plan, NULL, NULL, ro, c); 
+  Datum *values = NULL;
+  char *nulls = NULL;
+
+
+    if (p->nargs > 0) {
+        luaP_Buffer *b;
+        if (lua_type(L, 2) != LUA_TTABLE) luaP_typeerror(L, 2, "table");
+        b = luaP_getbuffer(L, p->nargs);
+        luaP_fillbuffer(L, 2, p->type, b);
+        values = b->value;
+        nulls = b->null;
+
+    }
+
+  PLLUA_PG_CATCH_RETHROW(
+    result = SPI_execute_plan(p->plan, values, nulls, ro, c);
+  );
+
   if (result < 0)
     return luaL_error(L, "SPI_execute_plan error: %d", result);
   if (result == SPI_OK_SELECT && SPI_processed > 0) /* any rows? */
@@ -808,7 +820,9 @@ static int luaP_executeplan (lua_State *L) {
 
 static int luaP_saveplan (lua_State *L) {
   luaP_Plan *p = (luaP_Plan *) luaP_checkudata(L, 1, PLLUA_PLANMT);
-  p->plan = SPI_saveplan(p->plan);
+  PLLUA_PG_CATCH_RETHROW(
+    p->plan = SPI_saveplan(p->plan);
+  );
   switch (SPI_result) {
     case SPI_ERROR_ARGUMENT:
       return luaL_error(L, "null plan to be saved");
@@ -830,16 +844,20 @@ static int luaP_getcursorplan (lua_State *L) {
   bool ro = (bool) lua_toboolean(L, 3);
   const char *name = lua_tostring(L, 4);
   Portal cursor;
+  Datum *values = NULL;
+  char *nulls = NULL;
   if (SPI_is_cursor_plan(p->plan)) {
     if (p->nargs > 0) {
       luaP_Buffer *b;
       if (lua_type(L, 2) != LUA_TTABLE) luaP_typeerror(L, 2, "table");
       b = luaP_getbuffer(L, p->nargs);
       luaP_fillbuffer(L, 2, p->type, b);
-      cursor = SPI_cursor_open(name, p->plan, b->value, b->null, ro);
+      values = b->value;
+      nulls = b->null;
     }
-    else
-      cursor = SPI_cursor_open(name, p->plan, NULL, NULL, ro);
+    PLLUA_PG_CATCH_RETHROW(
+      cursor = SPI_cursor_open(name, p->plan, values, nulls, ro);
+    );
     if (cursor == NULL)
       return luaL_error(L, "error opening cursor");
     luaP_pushcursor(L, cursor);
@@ -851,6 +869,8 @@ static int luaP_getcursorplan (lua_State *L) {
 static int luaP_rowsplan (lua_State *L) {
   luaP_Plan *p = (luaP_Plan *) luaP_checkudata(L, 1, PLLUA_PLANMT);
   Portal cursor;
+  Datum *values = NULL;
+  char *nulls = NULL;
   if (!SPI_is_cursor_plan(p->plan))
     return luaL_error(L, "Plan is not iterable");
   if (p->nargs > 0) {
@@ -858,10 +878,12 @@ static int luaP_rowsplan (lua_State *L) {
     if (lua_type(L, 2) != LUA_TTABLE) luaP_typeerror(L, 2, "table");
     b = luaP_getbuffer(L, p->nargs);
     luaP_fillbuffer(L, 2, p->type, b);
-    cursor = SPI_cursor_open(NULL, p->plan, b->value, b->null, 1);
+    values = b->value;
+    nulls = b->null;
   }
-  else
-    cursor = SPI_cursor_open(NULL, p->plan, NULL, NULL, 1);
+  PLLUA_PG_CATCH_RETHROW(
+    cursor = SPI_cursor_open(NULL, p->plan, values, nulls, 1);
+  );
 
   if (cursor == NULL)
     return luaL_error(L, "error opening cursor");
@@ -918,7 +940,9 @@ static int luaP_prepare (lua_State *L) {
             lua_pop(L, 1);
         }
     }
-    p->plan = SPI_prepare_cursor(q, nargs, p->type, cursoropt);
+    PLLUA_PG_CATCH_RETHROW(
+        p->plan = SPI_prepare_cursor(q, nargs, p->type, cursoropt);
+    );
     if (SPI_result < 0)
         return luaL_error(L, "SPI_prepare error: %d", SPI_result);
     luaP_getfield(L, PLLUA_PLANMT);
@@ -927,8 +951,12 @@ static int luaP_prepare (lua_State *L) {
 }
 
 static int luaP_execute (lua_State *L) {
-  int result = SPI_execute(luaL_checkstring(L, 1),
-      (bool) lua_toboolean(L, 2), luaL_optlong(L, 3, 0));
+  int result;
+  PLLUA_PG_CATCH_RETHROW(
+    result = SPI_execute(luaL_checkstring(L, 1),
+                         (bool) lua_toboolean(L, 2),
+                         luaL_optlong(L, 3, 0));
+  );
   if (result < 0)
     return luaL_error(L, "SPI_execute_plan error: %d", result);
   if (result == SPI_OK_SELECT && SPI_processed > 0) /* any rows? */
@@ -948,8 +976,7 @@ static int luaP_find (lua_State *L) {
 
 static int luaP_rows (lua_State *L) {
   Portal cursor;
-  PG_TRY();
-  {
+  PLLUA_PG_CATCH_RETHROW(
       SPI_plan *p = SPI_prepare_cursor(luaL_checkstring(L, 1), 0, NULL, 0);
       if (SPI_result < 0)
         return luaL_error(L, "SPI_prepare error: %d", SPI_result);
@@ -962,13 +989,7 @@ static int luaP_rows (lua_State *L) {
       luaP_pushcursor(L, cursor);
       lua_pushboolean(L, 0); /* not inited */
       lua_pushcclosure(L, luaP_rowsaux, 2);
-  }
-  PG_CATCH();
-  {
-      ErrorData  *errdata = CopyErrorData();
-      return luaL_error(L, "SPI_prepare error: %s", errdata->message);
-  }
-  PG_END_TRY();
+  );
   return 1;
 }
 

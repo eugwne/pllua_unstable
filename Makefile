@@ -49,10 +49,11 @@ lua_int64.o \
 pllua_hstore.o \
 rtupdesc.o \
 rtupdescstk.o \
-pllua_pgfunc.o
+pllua_pgfunc.o \
+pllua_subxact.o
 
 
-PG_CPPFLAGS = $(LUAINC) -I$(HSTOREINC) #-DPLLUA_DEBUG
+PG_CPPFLAGS = $(LUAINC) -I$(HSTOREINC) -DPLLUA_DEBUG
 SHLIB_LINK = $(LUALIB) $(HSTORESO)
 
 #PG_CONFIG = /usr/local/pgsql/bin/pg_config

@@ -11,6 +11,7 @@
 
 #include "pllua_hstore.h"
 #include "pllua_pgfunc.h"
+#include "pllua_subxact.h"
 
 
 /*
@@ -107,6 +108,12 @@ static const char PLLUA_DATUM[] = "datum";
 #define datum2string(d, f) \
   DatumGetCString(DirectFunctionCall1((f), (d)))
 #define text2string(d) datum2string((d), textout)
+
+static int luaP_panic(lua_State *L){
+    (void)L;
+    ereport(FATAL, (errmsg("pllua  unhandled exception")));
+    return 0;
+}
 
 /* string2text is simpler, so we implement it here with allocation in upper
  * memory context */
@@ -492,6 +499,7 @@ static const luaL_Reg luaP_funcs[] = {
   {"fromstring", luaP_fromstring},
   {"register_type", luaP_register_type},
   {"pgfunc", get_pgfunc},
+  {"subtransaction", use_subtransaction},
   {NULL, NULL}
 };
 
@@ -508,6 +516,7 @@ lua_State *luaP_newstate (int trusted) {
       "PL/Lua context", ALLOCSET_DEFAULT_MINSIZE, ALLOCSET_DEFAULT_INITSIZE,
       ALLOCSET_DEFAULT_MAXSIZE);
   lua_State *L = luaL_newstate();
+  lua_atpanic(L, luaP_panic);
   /* version */
   lua_pushliteral(L, PLLUA_VERSION);
   lua_setglobal(L, "_PLVERSION");

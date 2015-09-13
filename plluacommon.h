@@ -59,7 +59,21 @@ void luaL_setfuncs (lua_State *L, const luaL_Reg *l, int nup);
 #define ENDLUA
 #define ENDLUAV(v)
 #endif
+#define PLLUA_PG_CATCH_RETHROW(source_code)  do\
+{\
+    MemoryContext ____oldContext = CurrentMemoryContext;\
+    PG_TRY();\
+    {\
+        source_code\
+    }\
+    PG_CATCH();\
+    {\
+        push_spi_error(L, ____oldContext);\
+        lua_error(L);\
+    }PG_END_TRY();\
+}while(0)
 
+void push_spi_error(lua_State *L, MemoryContext oldcontext);
 /* get MemoryContext for state L */
 MemoryContext luaP_getmemctxt (lua_State *L);
 
