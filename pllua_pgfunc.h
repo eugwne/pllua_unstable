@@ -1,3 +1,9 @@
+/*
+ * pgfunc interface
+ * Author: Eugene Sergeev <eugeney.sergeev at gmail.com>
+ * Please check copyright notice at the bottom of pllua.h
+ */
+
 #ifndef PLLUA_PGFUNC_H
 #define PLLUA_PGFUNC_H
 

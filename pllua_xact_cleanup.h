@@ -1,3 +1,9 @@
+/*
+ * functions for resource management
+ * Author: Eugene Sergeev <eugeney.sergeev at gmail.com>
+ * Please check copyright notice at the bottom of pllua.h
+ */
+
 #ifndef PLLUA_XACT_CLEANUP_H
 #define PLLUA_XACT_CLEANUP_H
 

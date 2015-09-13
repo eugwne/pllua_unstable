@@ -1,3 +1,8 @@
+/*
+ * Subtransaction wrapper
+ * Author: Eugene Sergeev <eugeney.sergeev at gmail.com>
+ * Please check copyright notice at the bottom of pllua.h
+ */
 #ifndef PLLUA_SUBXACT_H
 #define PLLUA_SUBXACT_H
 

@@ -37,7 +37,9 @@ DATA = pllua--1.0.sql
 REGRESS = \
 plluatest \
 biginttest \
-hstoretest
+hstoretest \
+pgfunctest \
+subtransaction
 
 OBJS = \
 pllua.o \
@@ -53,7 +55,7 @@ pllua_pgfunc.o \
 pllua_subxact.o
 
 
-PG_CPPFLAGS = $(LUAINC) -I$(HSTOREINC) -DPLLUA_DEBUG
+PG_CPPFLAGS = $(LUAINC) -I$(HSTOREINC) #-DPLLUA_DEBUG
 SHLIB_LINK = $(LUALIB) $(HSTORESO)
 
 #PG_CONFIG = /usr/local/pgsql/bin/pg_config

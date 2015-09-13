@@ -108,6 +108,81 @@ static int call_4(lua_State *L)
                                        g_datum(3)), fi->prorettype);
     return 1;
 }
+static int call_5(lua_State *L)
+{
+    Lua_pgfunc *fi = (Lua_pgfunc *) lua_touserdata(L, lua_upvalueindex(1));
+    bool isnull;
+
+    luaP_pushdatum(L, OidFunctionCall5(fi->funcid,
+                                       g_datum(0),
+                                       g_datum(1),
+                                       g_datum(2),
+                                       g_datum(3),
+                                       g_datum(4)), fi->prorettype);
+    return 1;
+}
+static int call_6(lua_State *L)
+{
+    Lua_pgfunc *fi = (Lua_pgfunc *) lua_touserdata(L, lua_upvalueindex(1));
+    bool isnull;
+
+    luaP_pushdatum(L, OidFunctionCall6(fi->funcid,
+                                       g_datum(0),
+                                       g_datum(1),
+                                       g_datum(2),
+                                       g_datum(3),
+                                       g_datum(4),
+                                       g_datum(5)), fi->prorettype);
+    return 1;
+}
+static int call_7(lua_State *L)
+{
+    Lua_pgfunc *fi = (Lua_pgfunc *) lua_touserdata(L, lua_upvalueindex(1));
+    bool isnull;
+
+    luaP_pushdatum(L, OidFunctionCall7(fi->funcid,
+                                       g_datum(0),
+                                       g_datum(1),
+                                       g_datum(2),
+                                       g_datum(3),
+                                       g_datum(4),
+                                       g_datum(5),
+                                       g_datum(6)), fi->prorettype);
+    return 1;
+}
+static int call_8(lua_State *L)
+{
+    Lua_pgfunc *fi = (Lua_pgfunc *) lua_touserdata(L, lua_upvalueindex(1));
+    bool isnull;
+
+    luaP_pushdatum(L, OidFunctionCall8(fi->funcid,
+                                       g_datum(0),
+                                       g_datum(1),
+                                       g_datum(2),
+                                       g_datum(3),
+                                       g_datum(4),
+                                       g_datum(5),
+                                       g_datum(6),
+                                       g_datum(7)), fi->prorettype);
+    return 1;
+}
+static int call_9(lua_State *L)
+{
+    Lua_pgfunc *fi = (Lua_pgfunc *) lua_touserdata(L, lua_upvalueindex(1));
+    bool isnull;
+
+    luaP_pushdatum(L, OidFunctionCall9(fi->funcid,
+                                       g_datum(0),
+                                       g_datum(1),
+                                       g_datum(2),
+                                       g_datum(3),
+                                       g_datum(4),
+                                       g_datum(5),
+                                       g_datum(6),
+                                       g_datum(7),
+                                       g_datum(8)), fi->prorettype);
+    return 1;
+}
 #undef g_datum
 
 
@@ -119,6 +194,11 @@ static lua_CFunction pg_callable_funcs[] =
     call_2,
     call_3,
     call_4,
+    call_5,
+    call_6,
+    call_7,
+    call_8,
+    call_9,
     NULL
 };
 
@@ -147,12 +227,12 @@ int get_pgfunc(lua_State *L)
     if(lua_type(L, 1) == LUA_TSTRING){
         reg_name = luaL_checkstring(L, 1);
 
-        PG_TRY();
-        {
-            funcid = DatumGetObjectId(DirectFunctionCall1(regprocedurein, CStringGetDatum(reg_name)));
-        }
-        PG_CATCH();{}
-        PG_END_TRY();
+    PG_TRY();
+    {
+        funcid = DatumGetObjectId(DirectFunctionCall1(regprocedurein, CStringGetDatum(reg_name)));
+    }
+    PG_CATCH();{}
+    PG_END_TRY();
     }else if (lua_type(L, 1) == LUA_TNUMBER){
         funcid = luaL_checkinteger(L, 1);
     }
@@ -206,8 +286,10 @@ int get_pgfunc(lua_State *L)
         int pcall_result;
         Datum prosrc;
 
-        if((lf->numargs != 0) || (lf->prorettype != VOIDOID)){
-            luaL_error(L, "pgfunc accepts only void pllua/u functions with zero arguments");
+        if((lf->numargs != 1)
+                || (lf->argtypes[0] != INTERNALOID)
+                || (lf->prorettype != INTERNALOID)){
+            luaL_error(L, "pgfunc accepts only 'internal' pllua/u functions with internal argument");
         }
 
         prosrc = SysCacheGetAttr(PROCOID, proctup, Anum_pg_proc_prosrc, &isnull);
@@ -247,8 +329,8 @@ int get_pgfunc(lua_State *L)
     }
 
 
-    if (lf->numargs >4){
-        reg_error = "not supported function with more than 4 arguments";
+    if (lf->numargs >9){
+        reg_error = "not supported function with more than 9 arguments";
     }else {
         for (i = 0; i < lf->numargs; i++){
             char		argmode = lf->argmodes ? lf->argmodes[i] : PROARGMODE_IN;

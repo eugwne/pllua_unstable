@@ -34,6 +34,7 @@
 /* extended function info */
 typedef struct luaP_Info {
   RTupDescStack funcxt;
+  bool code_storage;
   int oid;
   int vararg;
   Oid result;
@@ -643,32 +644,44 @@ lua_State *luaP_newstate (int trusted) {
 
 static luaP_Info *luaP_newinfo (lua_State *L, int nargs, int oid,
     Form_pg_proc procst) {
+
+
   Oid *argtype = procst->proargtypes.values;
   Oid rettype = procst->prorettype;
   bool isset = procst->proretset;
   luaP_Info *fi;
   int i;
   luaP_Typeinfo *ti;
+  bool code_storage = ((nargs == 1)
+                       &&(argtype[0] == INTERNALOID)
+                       &&(rettype == INTERNALOID));
+
+
   fi = lua_newuserdata(L, sizeof(luaP_Info) + nargs * sizeof(Oid));
   fi->funcxt = NULL;
   fi->oid = oid;
-  /* read arg types */
-  for (i = 0; i < nargs; i++) {
-    ti = luaP_gettypeinfo(L, argtype[i]);
-    if (ti->type == 'p') /* pseudo-type? */
-      ereport(ERROR,
-          (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-           errmsg("[pllua]: functions cannot take type '%s'",
-          format_type_be(argtype[i]))));
-    fi->arg[i] = argtype[i];
+  fi->code_storage = code_storage;
+  if(!code_storage){
+      /* read arg types */
+      for (i = 0; i < nargs; i++) {
+        ti = luaP_gettypeinfo(L, argtype[i]);
+        if (ti->type == 'p') /* pseudo-type? */
+          ereport(ERROR,
+              (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+               errmsg("[pllua]: functions cannot take type '%s'",
+              format_type_be(argtype[i]))));
+        fi->arg[i] = argtype[i];
+      }
+      /* read result type */
+      ti = luaP_gettypeinfo(L, rettype);
+      if (ti->type == 'p' && rettype != VOIDOID && rettype != TRIGGEROID)
+        ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("[pllua]: functions cannot return type '%s'",
+               format_type_be(rettype))));
+  }else{
+      fi->arg[0] = INTERNALOID;
   }
-  /* read result type */
-  ti = luaP_gettypeinfo(L, rettype);
-  if (ti->type == 'p' && rettype != VOIDOID && rettype != TRIGGEROID)
-    ereport(ERROR,
-        (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-         errmsg("[pllua]: functions cannot return type '%s'",
-           format_type_be(rettype))));
   fi->vararg = rettype == TRIGGEROID; /* triggers are vararg */
   fi->result = rettype;
   fi->result_isset = isset;
@@ -700,7 +713,7 @@ static void luaP_newfunction (lua_State *L, int oid, HeapTuple proc,
   }
   lua_pushlightuserdata(L, (void *) *fi);
   /* check #argnames */
-  if (nargs > 0) {
+  if ((nargs > 0)&&((*fi)->code_storage == 0)) {
     int nnames;
     Datum argnames = SysCacheGetAttr(PROCOID, proc,
         Anum_pg_proc_proargnames, &isnull);
@@ -729,14 +742,16 @@ static void luaP_newfunction (lua_State *L, int oid, HeapTuple proc,
   luaL_addlstring(&b, fname, strlen(fname));
   luaL_addlstring(&b, "=function(", 10);
   /* read arg names */
-  if ((*fi)->vararg) luaL_addlstring(&b, "...", 3);
-  else {
-    int i;
-    for (i = 0; i < nargs; i++) {
-      if (i > 0) luaL_addchar(&b, ',');
-      t = DatumGetTextP(argname[i]);
-      luaL_addlstring(&b, VARDATA(t), VARSIZE(t) - VARHDRSZ);
-    }
+  if((*fi)->code_storage == 0){
+      if ((*fi)->vararg) luaL_addlstring(&b, "...", 3);
+      else {
+        int i;
+        for (i = 0; i < nargs; i++) {
+          if (i > 0) luaL_addchar(&b, ',');
+          t = DatumGetTextP(argname[i]);
+          luaL_addlstring(&b, VARDATA(t), VARSIZE(t) - VARHDRSZ);
+        }
+      }
   }
   luaL_addlstring(&b, ") ", 2);
   /* read source */
@@ -1266,6 +1281,9 @@ Datum luaP_callhandler (lua_State *L, FunctionCallInfo fcinfo) {
     elog(ERROR, "[pllua]: could not connect to SPI manager");
   istrigger = CALLED_AS_TRIGGER(fcinfo);
   fi = luaP_pushfunction(L, (int) fcinfo->flinfo->fn_oid);
+  if (fi->code_storage == 1){
+      luaL_error(L, "attempt to call non-callable function");
+  }
   if (fi->funcxt == NULL){
       fi->funcxt = rtds_initStack(L);
   }
