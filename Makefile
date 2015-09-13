@@ -37,7 +37,10 @@ DATA = pllua--1.0.sql
 REGRESS = \
 plluatest \
 biginttest \
-hstoretest
+hstoretest \
+pgfunctest \
+subtransaction
+
 
 OBJS = \
 pllua.o \
@@ -48,7 +51,9 @@ plluaspi.o \
 lua_int64.o \
 pllua_hstore.o \
 rtupdesc.o \
-rtupdescstk.o 
+rtupdescstk.o \
+pllua_pgfunc.o \
+pllua_subxact.o
 
 
 PG_CPPFLAGS = $(LUAINC) -I$(HSTOREINC) #-DPLLUA_DEBUG

@@ -1,3 +1,9 @@
+/*
+ * functions for tupledesc resource management
+ * Author: Eugene Sergeev <eugeney.sergeev at gmail.com>
+ * Please check copyright notice at the bottom of pllua.h
+ */
+
 #ifndef RTUPDESCSTK_H
 #define RTUPDESCSTK_H
 

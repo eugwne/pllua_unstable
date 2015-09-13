@@ -545,5 +545,3 @@ Datum getHStoreDatum(lua_State *L, int index){
     strg->havetodel = 1;
     return strg->datum;
 }
-
-
