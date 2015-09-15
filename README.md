@@ -22,6 +22,8 @@ do $$
   print(hs)
 $$ LANGUAGE pllua;
 ```
+
+hstore.delete - only one function added to lua to test binding to hstore  lib
 ####pgfunc function
 
 **pgfunc** might be used to bind postgres functions(sql/internal functions with IN arguments)
@@ -86,6 +88,21 @@ local m_void = pgfunc("i_void(internal)")
 m_void.bar()
 $$ LANGUAGE pllua;
 ```
+
+hstore is not full implemented in pllua, but pgfunc might be used to add additional functionality.
+hstore.delete - function might be created in pllua dynamically:
+
+```LUA
+do $$
+  register_type('hstore')
+  local hs_delete = pgfunc("delete(hstore,text)")
+  local hs = hs_delete(fromstring('hstore','a=>1 , b=>2, c=>3'), 'b')
+  print(hs)
+$$ language pllua 
+```
+
+C functions, that use SPI and used through pgfunc may fail in this case.
+ 
 ####subtransactions
 
 example:
@@ -102,7 +119,7 @@ print(status, err)
 $$ LANGUAGE pllua;
 ```
 
-note: all plans used in subtransaction must be created inside subtransaction function, otherwise it will crash
+note: all plans used in subtransaction better be created inside subtransaction function, otherwise it might crash(or not, needs test)
 
 ### License
 

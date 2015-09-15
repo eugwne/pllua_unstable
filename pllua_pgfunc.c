@@ -252,6 +252,7 @@ int get_pgfunc(lua_State *L)
               || (proc->prolang == get_plluau_oid()));
     if ( (proc->prolang != INTERNALlanguageId)
             &&(proc->prolang != SQLlanguageId)
+            &&(proc->prolang != ClanguageId)
             &&(!luasrc) ){
         ReleaseSysCache(proctup);
         return luaL_error(L, "supported only SQL/internal functions");
