@@ -490,6 +490,26 @@ static int luaP_register_type (lua_State *L) {
   return luaL_error(L, "unknown type %s", reg_name);
 }
 
+static int luaP_remote_debug_info (lua_State *L) {
+    BEGINLUA;
+    if ((lua_gettop(L) != 1)||(!lua_isboolean( L, 1 ))){
+        return luaL_error(L, "wrong arguments lentgh/type");
+    }
+    lua_pushlightuserdata(L, p_remote_debug_info);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    if (lua_isnil(L,-1)){
+        return luaL_error(L, "trusted lua does not support debugging");
+    }
+    lua_pop(L, 1);
+
+    lua_pushlightuserdata(L, p_remote_debug_info);
+    lua_swap(L);
+    lua_rawset(L, LUA_REGISTRYINDEX);
+
+    ENDLUAV(-1);
+    return -1;
+}
+
 static const luaL_Reg luaP_funcs[] = {
   {"setshared", luaP_setshared},
   {"log", luaP_log},
@@ -501,6 +521,7 @@ static const luaL_Reg luaP_funcs[] = {
   {"register_type", luaP_register_type},
   {"pgfunc", get_pgfunc},
   {"subtransaction", use_subtransaction},
+  {"remote_debug_info", luaP_remote_debug_info},
   {NULL, NULL}
 };
 
@@ -529,6 +550,12 @@ lua_State *luaP_newstate (int trusted) {
   lua_pushlightuserdata(L, p_lua_master_state);
   lua_pushlightuserdata(L, (void *) L);
   lua_rawset(L, LUA_REGISTRYINDEX);
+
+  if(!trusted){
+      lua_pushlightuserdata(L, p_remote_debug_info);
+      lua_pushboolean(L, false);
+      lua_rawset(L, LUA_REGISTRYINDEX);
+  }
   /* core libs */
   if (trusted) {
     const luaL_Reg luaP_trusted_libs[] = {
@@ -697,10 +724,11 @@ static void luaP_newfunction (lua_State *L, int oid, HeapTuple proc,
   Form_pg_proc procst;
   bool isnull;
   Datum prosrc, *argname;
-  const char *s, *fname;
+  const char *source, *fname;
   text *t;
   luaL_Buffer b;
   int init = (*fi == NULL); /* not initialized? */
+  const char *chunk_name = PLLUA_CHUNKNAME;
   /* read proc info */
   procst = (Form_pg_proc) GETSTRUCT(proc);
   prosrc = SysCacheGetAttr(PROCOID, proc, Anum_pg_proc_prosrc, &isnull);
@@ -762,8 +790,18 @@ static void luaP_newfunction (lua_State *L, int oid, HeapTuple proc,
   luaL_addlstring(&b, fname, strlen(fname));
   /* create function */
   luaL_pushresult(&b);
-  s = lua_tostring(L, -1);
-  if (luaL_loadbuffer(L, s, strlen(s), PLLUA_CHUNKNAME))
+  source = lua_tostring(L, -1);
+
+
+  //check if remote debug
+  lua_pushlightuserdata(L, p_remote_debug_info);
+  lua_rawget(L, LUA_REGISTRYINDEX);
+  if  ((!lua_isnil(L,-1))&&lua_toboolean(L, -1)){
+      chunk_name = source;
+  }
+  lua_pop(L, 1);
+
+  if (luaL_loadbuffer(L, source, strlen(source), chunk_name))
     luaP_error(L, "compile");
   lua_remove(L, -2); /* source */
   if (lua_pcall(L, 0, 1, 0)) luaP_error(L, "call");
@@ -1416,7 +1454,17 @@ Datum luaP_inlinehandler (lua_State *L, const char *source) {
   prev = rtds_set_current(funcxt);
   PG_TRY();
   {
-    if (luaL_loadbuffer(L, source, strlen(source), PLLUA_CHUNKNAME))
+      const char *chunk_name = PLLUA_CHUNKNAME;
+
+      lua_pushlightuserdata(L, p_remote_debug_info);
+      lua_rawget(L, LUA_REGISTRYINDEX);
+
+      if  ((!lua_isnil(L,-1))&&lua_toboolean(L, -1)){
+          chunk_name = source;
+      }
+      lua_pop(L, 1);
+
+    if (luaL_loadbuffer(L, source, strlen(source), chunk_name))
       luaP_error(L, "compile");
     if (lua_pcall(L, 0, 0, 0)) {
         funcxt = rtds_unref(funcxt);

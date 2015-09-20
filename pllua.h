@@ -15,6 +15,8 @@ void p_lua_mem_cxt(void);
 
 void p_lua_master_state(void);
 
+void p_remote_debug_info(void);
+
 typedef struct luaP_Buffer {
   int size;
   Datum *value;
