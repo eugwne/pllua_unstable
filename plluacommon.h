@@ -79,6 +79,8 @@ MemoryContext luaP_getmemctxt (lua_State *L);
 
 lua_State *pllua_getmaster (lua_State *L);
 
+#define lua_swap(L) lua_insert(L, -2)
+
 #define MTOLUA(state) {MemoryContext ___mcxt,___m;\
     ___mcxt = luaP_getmemctxt(state); \
     ___m  = MemoryContextSwitchTo(___mcxt)

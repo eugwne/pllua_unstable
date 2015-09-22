@@ -78,6 +78,8 @@ Datum pllua_inline_handler(PG_FUNCTION_ARGS) {
 
 void p_lua_mem_cxt(void){}
 void p_lua_master_state(void){}
+void p_remote_debug_info(void){}
+
 
 void push_spi_error(lua_State *L, MemoryContext oldcontext)
 {
@@ -137,6 +139,3 @@ int pg_to_regtype(char *typ_name)
     else
         return -1;
 }
-
-
-
