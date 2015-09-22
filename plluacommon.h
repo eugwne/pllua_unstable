@@ -73,6 +73,16 @@ void luaL_setfuncs (lua_State *L, const luaL_Reg *l, int nup);
     }PG_END_TRY();\
 }while(0)
 
+#define lua_push_oidstring(L, oid) do\
+{\
+    luaL_Buffer b;\
+    luaL_buffinit(L, &b);\
+    lua_pushinteger(L, oid);\
+    luaL_addstring(&b, "oid_");\
+    luaL_addvalue(&b);\
+    luaL_pushresult(&b);\
+}while(0)
+
 void push_spi_error(lua_State *L, MemoryContext oldcontext);
 /* get MemoryContext for state L */
 MemoryContext luaP_getmemctxt (lua_State *L);

@@ -478,7 +478,7 @@ static int luaP_tupleindex (lua_State *L) {
   //triggers data
 
 
-  lua_pushinteger(L, (int) t->relid);
+  lua_push_oidstring(L, (int) t->relid);
   lua_rawget(L, LUA_REGISTRYINDEX);
   lua_getfield(L, -1, name);
   i = luaL_optinteger(L, -1, -1);
@@ -499,7 +499,7 @@ static int luaP_tuplenewindex (lua_State *L) {
   int i;
   if (t->changed == -1) /* read-only? */
     return luaL_error(L, "tuple is read-only");
-  lua_pushinteger(L, (int) t->relid);
+  lua_push_oidstring(L, (int) t->relid);
   lua_rawget(L, LUA_REGISTRYINDEX);
   lua_getfield(L, -1, name);
   i = luaL_optinteger(L, -1, -1);
@@ -597,7 +597,7 @@ HeapTuple luaP_casttuple (lua_State *L, TupleDesc tupdesc) {
   int i;
   luaP_Buffer *b;
   if (t == NULL) return NULL; /* not a tuple */
-  lua_pushinteger(L, (int) t->relid);
+  lua_push_oidstring(L, (int) t->relid);
   lua_rawget(L, LUA_REGISTRYINDEX); /* tuple desc table */
   b = luaP_getbuffer(L, tupdesc->natts);
   for (i = 0; i < tupdesc->natts; i++) {
