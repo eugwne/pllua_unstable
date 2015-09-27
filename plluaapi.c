@@ -150,7 +150,7 @@ static int luaP_typeinfogc (lua_State *L) {
 
 static luaP_Typeinfo *luaP_gettypeinfo (lua_State *L, int oid) {
   luaP_Typeinfo *ti;
-  lua_pushinteger(L, oid);
+  lua_push_oidstring(L, oid);
   lua_rawget(L, LUA_REGISTRYINDEX);
   if (lua_isnil(L, -1)) { /* not cached? */
     HeapTuple type;
@@ -183,7 +183,7 @@ static luaP_Typeinfo *luaP_gettypeinfo (lua_State *L, int oid) {
     lua_pushlightuserdata(L, (void *) PLLUA_TYPEINFO);
     lua_rawget(L, LUA_REGISTRYINDEX); /* Typeinfo_MT */
     lua_setmetatable(L, -2);
-    lua_pushinteger(L, oid);
+    lua_push_oidstring(L, oid);
     lua_pushvalue(L, -2);
     lua_rawset(L, LUA_REGISTRYINDEX); /* REG[oid] = typeinfo */
     lua_pop(L, 2); /* nil and typeinfo */
@@ -291,7 +291,7 @@ static void luaP_preptrigger (lua_State *L, TriggerData *tdata) {
   lua_pushstring(L, relname);
   lua_setfield(L, -2, "name");
   luaP_pushdesctable(L, tdata->tg_relation->rd_att);
-  lua_pushinteger(L, (int) tdata->tg_relation->rd_id);
+  lua_push_oidstring(L, (int) tdata->tg_relation->rd_id);
   lua_pushvalue(L, -2); /* attribute table */
   
   lua_rawset(L, LUA_REGISTRYINDEX); /* cache desc */
@@ -736,7 +736,7 @@ static void luaP_newfunction (lua_State *L, int oid, HeapTuple proc,
   nargs = procst->pronargs;
   /* get info userdata */
   if (init) {
-    lua_pushinteger(L, oid);
+    lua_push_oidstring(L, oid);
     *fi = luaP_newinfo(L, nargs, oid, procst);
   }
   lua_pushlightuserdata(L, (void *) *fi);
@@ -825,7 +825,7 @@ static luaP_Info *luaP_pushfunction (lua_State *L, int oid) {
   proc = SearchSysCache(PROCOID, ObjectIdGetDatum((Oid) oid), 0, 0, 0);
   if (!HeapTupleIsValid(proc))
     elog(ERROR, "[pllua]: cache lookup failed for function %u", (Oid) oid);
-  lua_pushinteger(L, oid);
+  lua_push_oidstring(L, oid);
   lua_rawget(L, LUA_REGISTRYINDEX);
   if (lua_isnil(L, -1)) { /* not interned? */
     lua_pop(L, 1); /* nil */
