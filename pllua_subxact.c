@@ -60,11 +60,11 @@ int use_subtransaction(lua_State *L){
     int pcall_result = 0;
 
 
-    if (lua_gettop(L) != 1){
+    if (lua_gettop(L) < 1){
         return luaL_error(L, "subtransaction has no function argument");
     }
     if (lua_type(L, 1) != LUA_TFUNCTION){
-        return luaL_error(L, "subtransaction accepts only functions");
+        return luaL_error(L, "subtransaction first arg must be a lua function");
     }
 
     funcxt = rtds_initStack(L);
@@ -80,7 +80,10 @@ int use_subtransaction(lua_State *L){
     }
     PG_CATCH();
     {
-        //all exceptions should be thrown only through luaL_error
+        /* all exceptions should be thrown only through luaL_error
+         * we might me be here if there is a postgres unhandled exception
+         * and lua migth be in an inconsistant state that's why the process aborted
+         */
         ErrorData  *edata;
         edata = CopyErrorData();
         ereport(FATAL, (errmsg("Unhandled exception: %s", edata->message)));

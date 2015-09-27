@@ -811,7 +811,11 @@ static int luaP_executeplan (lua_State *L) {
 
   if (result < 0)
     return luaL_error(L, "SPI_execute_plan error: %d", result);
-  if (result == SPI_OK_SELECT && SPI_processed > 0) /* any rows? */
+  if (((result == SPI_OK_SELECT)
+       ||(result == SPI_OK_UPDATE_RETURNING)
+       ||(result == SPI_OK_INSERT_RETURNING)
+       ||(result == SPI_OK_DELETE_RETURNING)
+       )&& SPI_processed > 0) /* any rows? */
     luaP_pushtuptable(L, NULL);
   else
     lua_pushnil(L);
