@@ -1,4 +1,4 @@
-pllua unstable
+pllua unstable [![Build Status](https://travis-ci.org/eugwne/pllua_unstable.svg)](https://travis-ci.org/eugwne/pllua_unstable)
 =====
 
 [PL/Lua] (https://github.com/pllua/pllua) fork for implementing new PL/Lua features, not properly tested. 
