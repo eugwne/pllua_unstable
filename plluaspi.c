@@ -397,14 +397,15 @@ static int luaP_p_tupleindex (lua_State *L) {
                 lua_pushnil(L);
                 return 1;
             }
-            if (i >= 0) {
+            if ((i >= 0)&&(i < tupleDesc->natts)) {
                 if (!t->null[i])
                     luaP_pushdatum(L, t->value[i], tupleDesc->attrs[i]->atttypid);
                 else lua_pushnil(L);
             }
             else {
-                ereport(WARNING, (errmsg("tuple has no field at index %i", i+1)));
-                lua_pushnil(L);
+                //ereport(WARNING, (errmsg("tuple has no field at index %i", i+1)));
+                //lua_pushnil(L);
+                return luaL_error(L, "tuple has no field at index %d", i+1);
             }
             return 1;
         }
@@ -435,8 +436,10 @@ static int luaP_p_tupleindex (lua_State *L) {
             else lua_pushnil(L);
         }
         else {
-            ereport(WARNING, (errmsg("tuple has no field '%s'", name)));
-            lua_pushnil(L);
+            //ereport(WARNING, (errmsg("tuple has no field '%s'", name)));
+            //lua_pushnil(L);
+            return luaL_error(L, "tuple has no field '%s'", name);
+
         }
         return 1;
     }
